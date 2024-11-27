@@ -1,0 +1,227 @@
+---
+title: "Casove rady - projekt"
+output: html_notebook
+---
+
+PART A
+
+```{r}
+load("NLucic_SIHTD_Continuous_Foreign_Trade_series_1900-2021-14032024.Rdata")
+class(x)
+data <- x$Hawaii
+na_value_idx <- max(which(!is.na(data)))
+years <- x$Years[1:na_value_idx]
+start_year <- min(years)
+end_year <- max(years)
+data <- ts(data[1:na_value_idx], start=start_year, end=end_year)
+```
+
+```{r}
+plot(data)
+```
+
+```{r}
+plot(log(data))
+```
+
+```{r}
+diff_log_data <- diff(log(data))
+plot(diff(log(data)))
+
+```
+
+PART B
+
+```{r}
+acf(diff_log_data)
+```
+
+```{r}
+Box.test(diff_log_data, lag = 5, type = "Ljung-Box")$p.value
+
+```
+
+```{r}
+p_values <- numeric(20)  # Assuming you want to test lags from 1 to 15
+
+# Loop through lag values and run the Ljung-Box test for each lag
+for (lag in 1:20) {
+  test_result <- Box.test(diff_log_data, lag = lag, type = "Ljung-Box")
+  p_values[lag] <- test_result$p.value
+}
+
+# Plot the p-values against the lag values
+plot(1:20, p_values, type = "b", pch = 19, xlab = "Lag", ylab = "p-value", 
+     main = "Ljung-Box Test P-values", col = "black")
+abline(h = 0.05, col = "red", lty = 2)
+```
+
+```{r}
+library(forecast)
+best_model <- auto.arima(log(data), d = 1, stepwise = FALSE, approximation = FALSE, ic = "bic")
+best_model
+```
+
+```{r}
+library(astsa)
+sarima(log(data), p = 0, d = 1, q = 0, no.constant = FALSE)
+```
+
+```{r}
+trace_output <- capture.output(
+  auto.arima(log(data), d = 1, stepwise = FALSE, approximation = FALSE, ic = "bic", trace = TRUE)
+)
+
+models_bic <- data.frame(Model = character(), BIC = numeric())
+
+for (line in trace_output) {
+  if (grepl(": ", line)) {
+    # Extract the model name
+    model <- sub(":.*", "", line)  # Text before the colon
+    model <- trimws(model)        # Remove extra spaces
+
+    # Extract the BIC value
+    bic <- as.numeric(sub(".*: ", "", line))  # Text after the colon
+
+    # Append to the data frame
+    models_bic <- rbind(models_bic, data.frame(Model = model, BIC = bic))
+  }
+}
+
+# View the captured models and their BICs
+models_bic
+```
+
+```{r}
+library(astsa)
+library(forecast)
+
+# Define the list of ARIMA models with finite BIC to test
+# These models are taken from the provided list, excluding those with infinite BIC values.
+models_to_test <- list(
+  list(p = 0, d = 1, q = 0, drift = FALSE),   # ARIMA(0, 1, 0)
+  list(p = 0, d = 1, q = 0, drift = TRUE),    # ARIMA(0, 1, 0) with drift
+  list(p = 0, d = 1, q = 1, drift = FALSE),   # ARIMA(0, 1, 1)
+  list(p = 0, d = 1, q = 1, drift = TRUE),    # ARIMA(0, 1, 1) with drift
+  list(p = 0, d = 1, q = 2, drift = FALSE),   # ARIMA(0, 1, 2)
+  list(p = 0, d = 1, q = 2, drift = TRUE),    # ARIMA(0, 1, 2) with drift
+  list(p = 0, d = 1, q = 3, drift = FALSE),   # ARIMA(0, 1, 3)
+  list(p = 0, d = 1, q = 3, drift = TRUE),    # ARIMA(0, 1, 3) with drift
+  list(p = 0, d = 1, q = 4, drift = FALSE),   # ARIMA(0, 1, 4)
+  list(p = 0, d = 1, q = 4, drift = TRUE),    # ARIMA(0, 1, 4) with drift
+  list(p = 0, d = 1, q = 5, drift = FALSE),   # ARIMA(0, 1, 5)
+  list(p = 0, d = 1, q = 5, drift = TRUE),    # ARIMA(0, 1, 5) with drift
+  list(p = 1, d = 1, q = 0, drift = FALSE),   # ARIMA(1, 1, 0)
+  list(p = 1, d = 1, q = 0, drift = TRUE),    # ARIMA(1, 1, 0) with drift
+  list(p = 1, d = 1, q = 1, drift = TRUE),    # ARIMA(1, 1, 1) with drift
+  list(p = 1, d = 1, q = 2, drift = TRUE),    # ARIMA(1, 1, 2) with drift
+  list(p = 1, d = 1, q = 3, drift = TRUE),    # ARIMA(1, 1, 3) with drift
+  list(p = 1, d = 1, q = 4, drift = FALSE),   # ARIMA(1, 1, 4)
+  list(p = 1, d = 1, q = 4, drift = TRUE),    # ARIMA(1, 1, 4) with drift
+  list(p = 2, d = 1, q = 0, drift = FALSE),   # ARIMA(2, 1, 0)
+  list(p = 2, d = 1, q = 0, drift = TRUE),    # ARIMA(2, 1, 0) with drift
+  list(p = 2, d = 1, q = 1, drift = TRUE),    # ARIMA(2, 1, 1) with drift
+  list(p = 2, d = 1, q = 3, drift = FALSE),   # ARIMA(3, 1, 0)
+  list(p = 3, d = 1, q = 0, drift = FALSE),   # ARIMA(3, 1, 0)
+  list(p = 3, d = 1, q = 0, drift = TRUE),    # ARIMA(3, 1, 0) with drift
+  list(p = 3, d = 1, q = 1, drift = TRUE),    # ARIMA(3, 1, 1) with drift
+  list(p = 4, d = 1, q = 0, drift = FALSE),   # ARIMA(4, 1, 0)
+  list(p = 4, d = 1, q = 0, drift = TRUE),    # ARIMA(4, 1, 0) with drift
+  list(p = 4, d = 1, q = 1, drift = FALSE),   # ARIMA(4, 1, 1)
+  list(p = 4, d = 1, q = 1, drift = TRUE),    # ARIMA(4, 1, 1) with drift
+  list(p = 5, d = 1, q = 0, drift = FALSE),   # ARIMA(5, 1, 0)
+  list(p = 5, d = 1, q = 0, drift = TRUE)     # ARIMA(5, 1, 0) with drift
+)
+
+good_models <- list()
+
+# Loop through each model and fit using Arima(), evaluate residuals using Ljung-Box test
+for (model in models_to_test) {
+  # Extract model parameters
+  p <- model$p
+  d <- model$d
+  q <- model$q
+  drift <- model$drift
+  
+  # Print the model being evaluated
+  cat("\nEvaluating ARIMA(", p, ", ", d, ", ", q, ifelse(drift, " with drift", ""), ")\n")
+  
+  # Fit the model using Arima() function from the forecast package
+  if (drift) {
+    fitted_model <- Arima(log(data), order = c(p, d, q), include.drift = TRUE)
+  } else {
+    fitted_model <- Arima(log(data), order = c(p, d, q), include.drift = FALSE)
+  }
+  
+  # Extract the residuals
+  residuals <- residuals(fitted_model)
+  
+  # Ljung-Box test on residuals for lags from 1 to 20
+  p_values <- sapply(1:20, function(lag) {
+    Box.test(residuals, lag = lag, type = "Ljung-Box")$p.value
+  })
+  
+  # Print the p-values of the Ljung-Box Test for each lag
+  cat("Ljung-Box p-values for residuals at lags 1 to 20:\n")
+  print(p_values)
+  
+  # Determine if the residuals are white noise
+  if (all(p_values > 0.05)) {
+    good_models <- append(good_models, list(list(model = paste("ARIMA(", p, ", ", d, ", ", q, ifelse(drift, " with drift", ""), ")"), BIC = fitted_model$bic)))
+    cat("Good model found: ARIMA(", p, ", ", d, ", ", q, ifelse(drift, " with drift", ""), ")\n")
+  } else {
+    cat("Model ARIMA(", p, ", ", d, ", ", q, ifelse(drift, " with drift", ""), ") has significant autocorrelations in residuals.\n")
+  }
+  
+  cat("--------------------------------------------\n")
+}
+```
+
+```{r}
+good_models
+```
+
+```{r}
+good_models_df <- do.call(rbind, lapply(good_models, as.data.frame))
+
+# Zoradenie modelov podľa BIC (od najlepšieho po najhorší)
+sorted_good_models_df <- good_models_df[order(as.numeric(good_models_df$BIC)), ]
+
+# Vypísanie výslednej tabuľky
+print(sorted_good_models_df)
+```
+
+```{r}
+best_model <- Arima(log(data), order = c(4, 1, 1))
+
+# Výpis modelu a jeho koeficientov
+print(best_model)
+
+# Vytvorenie ACF a PACF grafov pre rezíduá
+residuals_best_model <- residuals(best_model)
+par(mfrow = c(1, 2))
+acf(residuals_best_model, main = "ACF Rezíduí - ARIMA(4,1,1)")
+pacf(residuals_best_model, main = "PACF Rezíduí - ARIMA(4,1,1)")
+
+# Ljung-Boxov test na rezíduách modelu pre lagy od 1 do 20
+ljung_box_pvalues <- sapply(1:20, function(lag) {
+  Box.test(residuals_best_model, lag = lag, type = "Ljung-Box")$p.value
+})
+
+# Výpis výsledkov Ljung-Boxovho testu
+cat("Ljung-Box p-hodnoty pre rezíduá modelu ARIMA(4, 1, 1) pre lagy 1 až 20:\n")
+print(ljung_box_pvalues)
+
+# Zhodnotenie modelu na základe Ljung-Box p-hodnôt
+if (all(ljung_box_pvalues > 0.05)) {
+  cat("Rezíduá modelu ARIMA(4, 1, 1) sa správajú ako biely šum. Model je adekvátny.\n")
+} else {
+  cat("Rezíduá modelu ARIMA(4, 1, 1) majú významné autokorelácie. Model je potrebné zlepšiť.\n")
+}
+```
+
+k by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
