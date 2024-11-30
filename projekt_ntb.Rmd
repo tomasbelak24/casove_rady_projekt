@@ -5,6 +5,8 @@ output: html_notebook
 
 PART A
 
+V tomto projekte budem pracovať s dátami 50. štátu USA - Havaj. Dáta sú časový rád s počiatkom v roku 1900, jednotkovou frekvenciou a koncom v roku 2020. Pre každý rok sledujeme objem zahraničných obchodov v dolároch.
+
 ```{r}
 load("NLucic_SIHTD_Continuous_Foreign_Trade_series_1900-2021-14032024.Rdata")
 class(x)
@@ -14,31 +16,30 @@ years <- x$Years[1:na_value_idx]
 start_year <- min(years)
 end_year <- max(years)
 data <- ts(data[1:na_value_idx], start=start_year, end=end_year)
-```
 
-```{r}
 plot(data)
 ```
+
+Dáta sú rastúce a s nimi aj ich disperzia, preto dáta logaritmizujeme:
 
 ```{r}
 plot(log(data))
 ```
 
-```{r}
+V dátach môžme pozorovať rastúci trend, preto s istotou môžme povedať, že nie sú stacionárne a kvôli tomu ich zdiferencujeme:
+
+```{r plot_diff_log_data, echo=TRUE}
+
 diff_log_data <- diff(log(data))
-plot(diff(log(data)))
+plot(diff_log_data)
 
 ```
 
 PART B
 
 ```{r}
+
 acf(diff_log_data)
-```
-
-```{r}
-Box.test(diff_log_data, lag = 5, type = "Ljung-Box")$p.value
-
 ```
 
 ```{r}
@@ -218,6 +219,31 @@ if (all(ljung_box_pvalues > 0.05)) {
 } else {
   cat("Rezíduá modelu ARIMA(4, 1, 1) majú významné autokorelácie. Model je potrebné zlepšiť.\n")
 }
+```
+
+```{r}
+library(urca)
+summary(ur.df(diff_log_data, type = "drift", lags = 12, selectlags = "BIC"))
+```
+
+```{r}
+best_model <- Arima(log(data), order = c(4, 1, 1))
+
+# Predikcia na nasledujúcich 10 rokov
+forecast_result <- forecast(best_model, h = 10)
+
+# Vykreslenie pôvodnej časovej rady spolu s predikciou
+plot(forecast_result, main = "Predikcia na 10 rokov - ARIMA(4, 1, 1) model")
+
+# Výpis predikovaných hodnôt a intervalov spoľahlivosti
+print(forecast_result)
+```
+
+```{r}
+h <- 10  # Počet rokov na predikciu
+
+# Použitie sarima.for() na vykonanie predikcie
+sarima.for(log(data), n.ahead = h, p = 4, d = 1, q = 1)
 ```
 
 k by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
