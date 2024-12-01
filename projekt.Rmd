@@ -1,9 +1,9 @@
 ---
-title: "R Notebook"
+title: "Projekt - Havaj"
 output: html_notebook
 ---
 
-PART A - úvod
+### **PART A - úvod**
 
 V tomto projekte budem pracovať s dátami 50. štátu USA - Havaj. Dáta sú časový rád s počiatkom v roku 1900, jednotkovou frekvenciou a koncom v roku 2020. Pre každý rok sledujeme objem zahraničných obchodov v dolároch.
 
@@ -33,7 +33,7 @@ diff_log_data <- diff(log(data))
 plot(diff_log_data)
 ```
 
-PART B - testovanie bieleho šumu
+### **PART B - testovanie bieleho šumu**
 
 V tejto časti projektu zisťujem či diferencie logaritmizovaných dát sú, resp. nie sú biely šum. K tomu aby boli biely šum musí byť splnených niekoľko podmienok:
 
@@ -49,7 +49,7 @@ Začnime autokoreláciou:
 acf(diff_log_data)
 ```
 
-Graf autokorelačnej funkcie zobrazuje závislosť časového radu po diferenciácii na jednotlivých lagoch. Pre každý lag testujeme nulovú hypotézu, že autokorelácia na danom lag-u je rovná nule, teda že časový rad nevykazuje štatistickú závislosť. Ak hodnota autokorelácie prekročí modré prerušené čiary (95 percentné intervaly spoľahlivosti), nulovú hypotézu zamietame, čo naznačuje štatisticky významnú závislosť. Z grafu vidíme, že na lagoch 4, 5, 10 a 15 autokorelácia prekračuje hranicu spoľahlivosti, čo znamená, že na tomto lag-u je prítomná štatisticky významná autokorelácia. Na ostatných lagoch sa hodnoty pohybujú v rámci intervalov spoľahlivosti, a preto nenaznačujú žiadnu štatisticky významnú závislosť. Pozorujeme, že pre lagy, ktoré sú násobky piatich je podľa ACF prítomná štatisticky významná autokorelácia. Zrejme nepôjde o náhodu, domnievam sa, že v dátach stále je nejaká štruktúra a že nejde o biely šum.
+Graf autokorelačnej funkcie zobrazuje závislosť časového radu po diferenciácii na jednotlivých lagoch. Funkcia acf vypočíta autokorelácie časového radu na jednotlivých lagoch a vizualizuje ich. Ak hodnota autokorelácie prekročí modré prerušené čiary (95 percentné intervaly spoľahlivosti), môže to naznačovať štatisticky významnú závilosť v dátach na danom lag-u. Z grafu vidíme, že na lagoch 4, 5, 10 a 15 autokorelácia prekračuje hranicu spoľahlivosti. Na ostatných lagoch sa hodnoty pohybujú v rámci intervalov spoľahlivosti, a preto nenaznačujú žiadnu štatisticky významnú závislosť. Pozorujeme, že pre lagy, ktoré sú násobky piatich je podľa ACF prítomná štatisticky významná autokorelácia. Zrejme nepôjde o náhodu, domnievam sa, že v dátach stále je nejaká štruktúra a že nejde o biely šum.
 
 Vykonáme Ljung-Boxov test nech sme si istejší:
 
@@ -68,6 +68,191 @@ plot(1:20, p_values, type = "b", pch = 19, xlab = "Lag", ylab = "p-value",
 abline(h = 0.05, col = "red", lty = 2)
 ```
 
-Môžme vidieť, že pre hodnoty lag \> 4 sú p hodnoty nižšie ako hranica 0.05 - to znamená, že jednotlivé Ljung-Boxové testy zamietli nulovú hypotézu a prijali alternatívnu hypotézu a teda, že časový rad vykazuje autokorelácie. Záver, ktorý z toho možno odvodiť je, že diferencované logaritmizované dáta nie sú biely šum.
+Môžme vidieť, že pre hodnoty lag \> 4 sú p hodnoty nižšie ako hranica 0.05 - to znamená, že jednotlivé Ljung-Boxové testy zamietli nulovú hypotézu a prijali alternatívnu hypotézu a teda, že časový rad vykazuje autokorelácie. Záver, ktorý z toho možno odvodiť je, že diferencované logaritmizované dáta nie sú biely šum, nakoľko je prítomná štatisticky významná závislosť. Okrem toho ani stredná hodnota reziduí nebude nulová nakoľko, v logaritmizovaných dátach je stále zachovaný rastúci trend pôvodných dát a tým pádom stredná hodnota diferencií by mala byť kladná.
 
-PART C - Funkcia auto.arima
+### **PART C - Funkcia auto.arima**
+
+Najlepší model podľa BIC:
+
+```{r}
+library(forecast)
+best_model <- auto.arima(log(data), d = 1, stepwise = FALSE, approximation = FALSE, ic = "bic")
+best_model
+```
+
+Porovnamé s odhadom modelu pomocou funkcie `sarima` z balíka `astsa` s parametrami ARIMA(0,1,0) a zahrnutím driftu
+
+```{r}
+library(astsa)
+sarima(log(data), p = 0, d = 1, q = 0, no.constant = FALSE)
+```
+
+Výsledky potvrdili rovnakú štruktúru ako pri predchádzajúcom odhade pomocou funkcie `auto.arima`. Rovnica pre odhadnutý model vyjadrená na úrovni diferencií je nasledovná:
+
+\$\$\\Delta \\log(data_t) = 0.0667 + \\epsilon_t\$\$
+
+kde 0.0667 je odhadnutý drift a $\epsilon_t$​ predstavujú rezíduá modelu.
+
+Rezíduá modelu boli analyzované pomocou ACF rezíduí, Ljung-Boxovho testu a Q-Q grafu. Môžme pozorovať, že ACF naznačuje signifikantnú autokoreláciu pre lagy 4,5,10,15. Opäť teda pozorujeme vzor násobkov piatich čo vzbudzuje podozrenie, že reziduá nie sú biely šum.
+
+Z Q-Q plotu ďalej vidíme, že rezíduá boli približne normálne rozdelené, čo potvrdzuje platnosť predpokladov modelu a má zmysel na nich robiť Ljung-Boxov test.
+
+Ljung-Boxov test odhalil štatisticky významnú autokoreláciu pre hodnoty lagu väčšie ako 4. Na základe výsledkov Ljung-Boxového testu môžme definiívne výlučíť, že reziduá sú biely šum nakoľko je prítomná štatisticky významná závislosť.
+
+Konštantný člen v modeli diferencií (c=0.0667) vyjadruje systematický trend rastu v sérii logaritmicky transformovaných dát. Zachytáva priemerný rast v diferenciách, ktorý súvisí s exponenciálnym charakterom pôvodného nediferencovaného časového radu. Prítomnosť konštanty v modeli teda reflektuje rastúci trend v pôvodných dátach a je nevyhnutná na správne popísanie procesu.
+
+### **PART D - ARIMA modely**
+
+Prejdeme znova všetky modely uvažované pri použití funkcie `auto.arima`.
+
+```{r}
+trace_output <- capture.output(
+  auto.arima(log(data), d = 1, stepwise = FALSE, approximation = FALSE, ic = "bic", trace = TRUE)
+)
+
+models_bic <- data.frame(Model = character(), BIC = numeric())
+
+for (line in trace_output) {
+  if (grepl(": ", line)) {
+    model <- sub(":.*", "", line)
+    model <- trimws(model)      
+
+    bic <- as.numeric(sub(".*: ", "", line))
+
+    models_bic <- rbind(models_bic, data.frame(Model = model, BIC = bic))
+  }
+}
+```
+
+Všetky modely, ktoré funkcia auto.arima brala do úvahy spolu s ich BIC:
+
+```{r}
+models_bic
+```
+
+Na základe hodnoty BIC bol ako najlepší vybraný model **ARIMA(0,1,0) s driftom**, ktorý dosiahol najnižšiu hodnotu BIC (-156.5528), čo naznačuje jeho preferovanosť pred ostatnými modelmi.
+
+Prítomnosť driftu v modeli je odôvodnená priebehom pôvodných nediferencovaných dát, ktoré vykazujú rastúci trend. Bez driftu by model ignoroval tento aspekt dát, čo by mohlo viesť k menej presným predikciám. Reziduá **ARIMA(0,1,0) s driftom** avšak neprešli Ljung-Boxovým a teda ho nepovažujeme v tomto projekte za "dobrý model". Za “dobrý model” považujeme taký, pre ktorý sú p-hodnoty Ljung-Boxovho testu pre všetky počty korelácií - od minimálneho po maximálny uvažovaný pri použití funkcie `sarima` - väčšie ako 0,05.\
+
+```{r}
+library(astsa)
+library(forecast)
+
+models_to_test <- list(
+  list(p = 0, d = 1, q = 0, drift = FALSE),   # ARIMA(0, 1, 0)
+  list(p = 0, d = 1, q = 0, drift = TRUE),    # ARIMA(0, 1, 0) with drift
+  list(p = 0, d = 1, q = 1, drift = FALSE),   # ARIMA(0, 1, 1)
+  list(p = 0, d = 1, q = 1, drift = TRUE),    # ARIMA(0, 1, 1) with drift
+  list(p = 0, d = 1, q = 2, drift = FALSE),   # ARIMA(0, 1, 2)
+  list(p = 0, d = 1, q = 2, drift = TRUE),    # ARIMA(0, 1, 2) with drift
+  list(p = 0, d = 1, q = 3, drift = FALSE),   # ARIMA(0, 1, 3)
+  list(p = 0, d = 1, q = 3, drift = TRUE),    # ARIMA(0, 1, 3) with drift
+  list(p = 0, d = 1, q = 4, drift = FALSE),   # ARIMA(0, 1, 4)
+  list(p = 0, d = 1, q = 4, drift = TRUE),    # ARIMA(0, 1, 4) with drift
+  list(p = 0, d = 1, q = 5, drift = FALSE),   # ARIMA(0, 1, 5)
+  list(p = 0, d = 1, q = 5, drift = TRUE),    # ARIMA(0, 1, 5) with drift
+  list(p = 1, d = 1, q = 0, drift = FALSE),   # ARIMA(1, 1, 0)
+  list(p = 1, d = 1, q = 0, drift = TRUE),    # ARIMA(1, 1, 0) with drift
+  list(p = 1, d = 1, q = 1, drift = TRUE),    # ARIMA(1, 1, 1) with drift
+  list(p = 1, d = 1, q = 2, drift = TRUE),    # ARIMA(1, 1, 2) with drift
+  list(p = 1, d = 1, q = 3, drift = TRUE),    # ARIMA(1, 1, 3) with drift
+  list(p = 1, d = 1, q = 4, drift = FALSE),   # ARIMA(1, 1, 4)
+  list(p = 1, d = 1, q = 4, drift = TRUE),    # ARIMA(1, 1, 4) with drift
+  list(p = 2, d = 1, q = 0, drift = FALSE),   # ARIMA(2, 1, 0)
+  list(p = 2, d = 1, q = 0, drift = TRUE),    # ARIMA(2, 1, 0) with drift
+  list(p = 2, d = 1, q = 1, drift = TRUE),    # ARIMA(2, 1, 1) with drift
+  list(p = 2, d = 1, q = 3, drift = FALSE),   # ARIMA(3, 1, 0)
+  list(p = 3, d = 1, q = 0, drift = FALSE),   # ARIMA(3, 1, 0)
+  list(p = 3, d = 1, q = 0, drift = TRUE),    # ARIMA(3, 1, 0) with drift
+  list(p = 3, d = 1, q = 1, drift = TRUE),    # ARIMA(3, 1, 1) with drift
+  list(p = 4, d = 1, q = 0, drift = FALSE),   # ARIMA(4, 1, 0)
+  list(p = 4, d = 1, q = 0, drift = TRUE),    # ARIMA(4, 1, 0) with drift
+  list(p = 4, d = 1, q = 1, drift = FALSE),   # ARIMA(4, 1, 1)
+  list(p = 4, d = 1, q = 1, drift = TRUE),    # ARIMA(4, 1, 1) with drift
+  list(p = 5, d = 1, q = 0, drift = FALSE),   # ARIMA(5, 1, 0)
+  list(p = 5, d = 1, q = 0, drift = TRUE)     # ARIMA(5, 1, 0) with drift
+)
+
+good_models <- list()
+
+for (model in models_to_test) {
+  p <- model$p
+  d <- model$d
+  q <- model$q
+  drift <- model$drift
+  
+  #cat("\nVyhodnotenie modelu ARIMA(", p, ", ", d, ", ", q, ifelse(drift, " with drift", ""), ")\n")
+  
+  if (drift) {
+    fitted_model <- Arima(log(data), order = c(p, d, q), include.drift = TRUE)
+  } else {
+    fitted_model <- Arima(log(data), order = c(p, d, q), include.drift = FALSE)
+  }
+  
+  residuals <- residuals(fitted_model)
+  
+  p_values <- sapply(1:20, function(lag) {
+    Box.test(residuals, lag = lag, type = "Ljung-Box")$p.value
+  })
+  
+  if (all(p_values > 0.05)) {
+    good_models <- append(good_models, list(list(model = paste("ARIMA(", p, ", ", d, ", ", q, ifelse(drift, " with drift", ""), ")"), BIC = fitted_model$bic)))
+  }
+}
+```
+
+Všetky dobré modely:
+
+```{r}
+good_models_df <- do.call(rbind, lapply(good_models, as.data.frame))
+sorted_good_models_df <- good_models_df[order(as.numeric(good_models_df$BIC)), ]
+print(sorted_good_models_df)
+```
+
+Najlepší model:
+
+```{r}
+library(astsa)
+sarima(log(data), p = 4, d = 1, q = 1, no.constant = FALSE)
+```
+
+ACF naznačuje štatisticky významnú autokoreláciu pre lag rovný 10 a podľa Q-Q grafu sa reziduá javia byť približne normálne. Ljung-Boxov test nezamietol nulovú hypotézu pre ani jednu s otestovaných hodnôt lagu a v reziduách nie je prítomná štatisticky významná závislosť a reziduá môžme považovať za biely šum.
+
+Rovnica odhadnutého modelu ARIMA(4,1,1) s driftom je nasledovná:
+
+\$\$
+\\Delta \\log(data_t) = 0.0671 - 0.7549 \\Delta \\log(data\_{t-1}) - 0.1122 \\Delta \\log(data\_{t-2}) + 0.0713 \\Delta \\log(data\_{t-3}) + 0.3002 \\Delta \\log(data\_{t-4}) + 0.6898 \\epsilon\_{t-1} + \\epsilon_t,
+\$\$
+
+### **PART E - Unit Root Test**
+
+Parametre použitého Unit Root testu:
+
+1.  **Typ regresie**: `type = "drift"`. Chceme aby regresia obsahovala drift (konštantný člen), nakoľko dáta majú rastúci trend.
+
+2.  **Počet lagov**: `lags = 20`, pričom optimálny počet lagov bol zvolený na základe kritéria BIC (`selectlags = "BIC"`). Lagy sa pridávajú, aby sa eliminovala autokorelácia rezíduí.
+
+```{r}
+library(urca)
+summary(ur.df(diff_log_data, type = "drift", lags = 20, selectlags = "BIC"))
+```
+
+Testované hypotézy:
+
+-   **Nulová hypotéza**: Časový rad má jednotkový koreň (nie je stacionárny).
+
+-   **Alternatívna hypotéza**: Časový rad nemá jednotkový koreň (je stacionárny).
+
+Na základe výsledku testu môžeme zamietnuť nulovú hypotézu o jednotkovom koreni s vysokou štatistickou istotou (p<0.001). Diferencie logaritmov sú stacionárne, čo znamená, že ďalšie diferencovanie nebolo potrebné.
+
+### **PART F - Predikcie**
+
+Na základe historických dát predikujeme budúce hodnoty na najbližších 10 rokov:
+
+```{r}
+pocet_rokov <- 10
+
+sarima.for(log(data), n.ahead = pocet_rokov, p = 4, d = 1, q = 1)
+```
+
+Predikcia na nasledujúcich 10 rokov ukazuje pokračujúci rast, ktorý je teda v súlade s doterajším trendom pozorovaným v historických dátach. Model očakáva, že trend bude pretrvávať bez výrazných zmien alebo odchýlok, čo naznačuje, že správanie časového radu ostáva konzistentné s doterajšou históriou. Šedé intervaly spoľahlivosti okolo predikovaných hodnôt sa postupne rozširujú, čo je prirodzené, pretože neistota predikcie narastá so zvyšujúcim sa časovým horizontom.
